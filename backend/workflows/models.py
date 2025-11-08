@@ -9,6 +9,7 @@ import uuid
 class Workflow(models.Model):
     """Workflow model"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='workflows', null=True, blank=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     nodes = models.JSONField(default=list)
@@ -19,6 +20,9 @@ class Workflow(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
     
     def __str__(self):
         return self.name
@@ -89,6 +93,7 @@ class MemoryMessage(models.Model):
 class Credential(models.Model):
     """Stored credentials for integrations"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='credentials', null=True, blank=True)
     name = models.CharField(max_length=255)
     credential_type = models.CharField(max_length=100)
     data = models.JSONField(default=dict)  # Encrypted in production
@@ -97,6 +102,9 @@ class Credential(models.Model):
     
     class Meta:
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['user', 'credential_type']),
+        ]
     
     def __str__(self):
         return f"{self.name} ({self.credential_type})"
@@ -156,3 +164,26 @@ class ExportedWorkflow(models.Model):
         """Increment import count"""
         self.import_count += 1
         self.save(update_fields=['import_count'])
+
+
+class UIBuilderProject(models.Model):
+    """UI Builder project model"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ui_projects', null=True, blank=True)
+    project_name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    components = models.JSONField(default=dict)  # GrapesJS components
+    styles = models.JSONField(default=dict)  # GrapesJS styles
+    assets = models.JSONField(default=list)  # Project assets
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['user', '-updated_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.project_name} - {self.user.username if self.user else 'Anonymous'}"

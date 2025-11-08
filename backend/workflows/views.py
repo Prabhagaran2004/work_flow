@@ -2,7 +2,8 @@
 Django REST Framework views for workflows
 """
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import models
@@ -30,6 +31,19 @@ class WorkflowViewSet(viewsets.ModelViewSet):
     """ViewSet for Workflow CRUD operations"""
     queryset = Workflow.objects.all()
     serializer_class = WorkflowSerializer
+    
+    def get_queryset(self):
+        """Filter workflows by authenticated user"""
+        queryset = Workflow.objects.all()
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        else:
+            queryset = queryset.none()  # No workflows for unauthenticated users
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Associate workflow with current user"""
+        serializer.save(user=self.request.user if self.request.user.is_authenticated else None)
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
@@ -190,6 +204,15 @@ class WorkflowExecutionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowExecution.objects.all()
     serializer_class = WorkflowExecutionSerializer
     
+    def get_queryset(self):
+        """Filter executions by authenticated user's workflows"""
+        queryset = WorkflowExecution.objects.all()
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(workflow__user=self.request.user)
+        else:
+            queryset = queryset.none()
+        return queryset
+    
     @action(detail=True, methods=['get'])
     def status(self, request, pk=None):
         """Get current execution status"""
@@ -216,6 +239,19 @@ class CredentialViewSet(viewsets.ModelViewSet):
     """ViewSet for managing credentials"""
     queryset = Credential.objects.all()
     serializer_class = CredentialSerializer
+    
+    def get_queryset(self):
+        """Filter credentials by authenticated user"""
+        queryset = Credential.objects.all()
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        else:
+            queryset = queryset.none()  # No credentials for unauthenticated users
+        return queryset
+    
+    def perform_create(self, serializer):
+        """Associate credential with current user"""
+        serializer.save(user=self.request.user if self.request.user.is_authenticated else None)
     
     def create(self, request, *args, **kwargs):
         """Create a new credential"""
@@ -296,6 +332,7 @@ def trigger_chat(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])  # Allow AI chat without authentication
 def ai_chat(request):
     """AI chatbot endpoint for general assistance"""
     request_start_time = time.time()

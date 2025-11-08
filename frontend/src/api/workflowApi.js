@@ -1,41 +1,17 @@
 /**
  * Workflow API Service
  * Handles all communication with the Django backend
+ * Now uses the centralized apiService for authentication
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+import apiService from '../services/api';
 
 class WorkflowAPI {
-  constructor() {
-    this.baseURL = API_BASE_URL;
-  }
-
   /**
-   * Generic request handler
+   * Generic request handler - uses apiService
    */
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    try {
-      const response = await fetch(url, config);
-      
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || error.detail || `HTTP ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('API Request failed:', error);
-      throw error;
-    }
+    return apiService.request(endpoint, options);
   }
 
   // ==================== Workflow Operations ====================
