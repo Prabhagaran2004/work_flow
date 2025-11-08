@@ -599,8 +599,15 @@ class ExportedWorkflowViewSet(viewsets.ModelViewSet):
         return ExportedWorkflowSerializer
     
     def get_queryset(self):
-        """Filter queryset based on query parameters"""
-        queryset = ExportedWorkflow.objects.all()
+        """Filter queryset based on query parameters and user"""
+        # Base queryset: user's own exports + public exports
+        if self.request.user.is_authenticated:
+            queryset = ExportedWorkflow.objects.filter(
+                models.Q(user=self.request.user) | models.Q(is_public=True)
+            )
+        else:
+            # Unauthenticated users can only see public exports
+            queryset = ExportedWorkflow.objects.filter(is_public=True)
         
         # Filter by export type
         export_type = self.request.query_params.get('export_type')
@@ -631,6 +638,10 @@ class ExportedWorkflowViewSet(viewsets.ModelViewSet):
             )
         
         return queryset
+    
+    def perform_create(self, serializer):
+        """Associate exported workflow with current user"""
+        serializer.save(user=self.request.user if self.request.user.is_authenticated else None)
     
     @action(detail=True, methods=['post'])
     def download(self, request, pk=None):
@@ -682,7 +693,7 @@ def export_workflow(request):
     """Export workflow to the exported workflows database"""
     try:
         # Get workflow data from request
-        workflow_data = request.data
+        workflow_data = request.data.copy()
         
         # Validate required fields
         required_fields = ['name', 'nodes', 'edges']
@@ -692,10 +703,10 @@ def export_workflow(request):
                     'error': f'Missing required field: {field}'
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create exported workflow
+        # Create exported workflow and associate with user
         serializer = ExportedWorkflowCreateSerializer(data=workflow_data)
         if serializer.is_valid():
-            exported_workflow = serializer.save()
+            exported_workflow = serializer.save(user=request.user if request.user.is_authenticated else None)
             response_serializer = ExportedWorkflowSerializer(exported_workflow)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         else:
@@ -712,6 +723,14 @@ def get_exported_workflow(request, workflow_id):
     """Get specific exported workflow by ID"""
     try:
         exported_workflow = get_object_or_404(ExportedWorkflow, id=workflow_id)
+        
+        # Check if user has access (owner or public)
+        if not exported_workflow.is_public:
+            if not request.user.is_authenticated or exported_workflow.user != request.user:
+                return Response({
+                    'error': 'You do not have permission to access this workflow'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = ExportedWorkflowSerializer(exported_workflow)
         return Response(serializer.data)
     except Exception as e:
@@ -853,22 +872,31 @@ def test_memory_connection(request):
 def get_memory_statistics(request):
     """Get memory usage statistics"""
     try:
-        # This would typically connect to your memory stores and get statistics
-        # For now, return mock data
+        from .models import MemoryCollection, MemoryMessage
+        
+        # Filter by user if authenticated
+        if request.user.is_authenticated:
+            collections = MemoryCollection.objects.filter(user=request.user)
+            messages = MemoryMessage.objects.filter(collection__user=request.user)
+        else:
+            collections = MemoryCollection.objects.none()
+            messages = MemoryMessage.objects.none()
+        
         stats = {
-            'total_memories': 0,
-            'active_memories': 0,
+            'total_memories': collections.count(),
+            'active_memories': collections.filter(updated_at__gte=models.F('created_at')).count(),
+            'total_messages': messages.count(),
             'memory_types': {
-                'window-buffer-memory': 0,
-                'agent-flow-db-memory': 0,
-                'simple-memory': 0,
-                'vector-memory': 0
+                'window-buffer-memory': collections.filter(name__icontains='window').count(),
+                'agent-flow-db-memory': collections.filter(name__icontains='db').count(),
+                'simple-memory': collections.filter(name__icontains='simple').count(),
+                'vector-memory': collections.filter(name__icontains='vector').count()
             },
             'storage_usage': {
-                'total_size': '0 MB',
-                'conversation_data': '0 MB',
-                'window_buffer': '0 MB',
-                'database_memory': '0 MB'
+                'total_size': f'{messages.count() * 0.001:.2f} MB',  # Rough estimate
+                'conversation_data': f'{messages.count() * 0.001:.2f} MB',
+                'window_buffer': f'{collections.count() * 0.01:.2f} MB',
+                'database_memory': f'{collections.count() * 0.01:.2f} MB'
             }
         }
         

@@ -56,12 +56,12 @@ class ExportedWorkflowSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExportedWorkflow
         fields = [
-            'id', 'name', 'description', 'version', 'export_type',
+            'id', 'user', 'name', 'description', 'version', 'export_type',
             'nodes', 'edges', 'tags', 'category', 'author',
             'is_public', 'is_featured', 'created_at', 'updated_at',
             'exported_at', 'download_count', 'import_count'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'exported_at', 'download_count', 'import_count']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'exported_at', 'download_count', 'import_count']
 
 
 class ExportedWorkflowCreateSerializer(serializers.ModelSerializer):
@@ -74,6 +74,7 @@ class ExportedWorkflowCreateSerializer(serializers.ModelSerializer):
             'nodes', 'edges', 'tags', 'category', 'author',
             'is_public', 'is_featured'
         ]
+        read_only_fields = ['user']  # User is set in the view
     
     def validate_nodes(self, value):
         """Validate nodes data"""

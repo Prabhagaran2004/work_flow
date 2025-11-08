@@ -55,7 +55,8 @@ class WorkflowExecution(models.Model):
 class MemoryCollection(models.Model):
     """Memory collection for storing conversation memory"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='memory_collections', null=True, blank=True)
+    name = models.CharField(max_length=255)
     workflow_id = models.CharField(max_length=255)
     node_id = models.CharField(max_length=255)
     window_size = models.IntegerField(default=20)
@@ -65,6 +66,11 @@ class MemoryCollection(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        # Make name unique per user
+        unique_together = [['user', 'name']]
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.workflow_id}"
@@ -119,6 +125,7 @@ class ExportedWorkflow(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exported_workflows', null=True, blank=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     version = models.CharField(max_length=20, default='1.0.0')
@@ -147,6 +154,7 @@ class ExportedWorkflow(models.Model):
     class Meta:
         ordering = ['-exported_at']
         indexes = [
+            models.Index(fields=['user', '-exported_at']),
             models.Index(fields=['export_type']),
             models.Index(fields=['is_public']),
             models.Index(fields=['category']),
