@@ -172,6 +172,16 @@ function WorkflowBuilder() {
     }
   }, []);
 
+  // Store handlers in refs so they can be accessed before definition
+  const handlersRef = useRef({
+    handleSettingsClick: null,
+    handleExecutionClick: null,
+    deleteNode: null,
+    duplicateNode: null,
+    handleChatClick: null,
+    handleChatExecution: null
+  });
+
   // Process saved workflow data after handlers are defined
   useEffect(() => {
     // Only process if we have saved data and haven't loaded yet
@@ -181,6 +191,11 @@ function WorkflowBuilder() {
     if (nodes.length > 0) {
       hasLoadedWorkflow.current = false; // Mark as processed
       return;
+    }
+    
+    // Wait for handlers to be defined
+    if (!handlersRef.current.handleSettingsClick) {
+      return; // Handlers not ready yet
     }
     
     try {
@@ -214,12 +229,12 @@ function WorkflowBuilder() {
             label: node.data?.label || 'Node',
             type: node.data?.type || node.type,
             properties: node.data?.properties || {},
-            onSettingsClick: handleSettingsClick,
-            onExecutionClick: handleExecutionClick,
-            onDelete: deleteNode,
-            onDuplicate: duplicateNode,
-            onChatClick: handleChatClick,
-            onTrackExecution: handleChatExecution
+            onSettingsClick: handlersRef.current.handleSettingsClick,
+            onExecutionClick: handlersRef.current.handleExecutionClick,
+            onDelete: handlersRef.current.deleteNode,
+            onDuplicate: handlersRef.current.duplicateNode,
+            onChatClick: handlersRef.current.handleChatClick,
+            onTrackExecution: handlersRef.current.handleChatExecution
           }
         };
       });
@@ -237,7 +252,7 @@ function WorkflowBuilder() {
       hasLoadedWorkflow.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleSettingsClick, handleExecutionClick, deleteNode, duplicateNode, handleChatClick, handleChatExecution]);
+  }, [nodes.length]);
 
   // Save auto-save preference
   useEffect(() => {
@@ -487,6 +502,11 @@ function WorkflowBuilder() {
     const node = nodes.find(n => n.id === nodeId);
     setSelectedNodeForSettings(node);
   }, [nodes]);
+  
+  // Update handlers ref when handlers are defined
+  useEffect(() => {
+    handlersRef.current.handleSettingsClick = handleSettingsClick;
+  }, [handleSettingsClick]);
 
   const handleExecutionClick = useCallback(async (nodeId) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -1248,6 +1268,16 @@ function WorkflowBuilder() {
       }
     }
   }, [handleSettingsClick, handleExecutionClick, deleteNode, duplicateNode, handleChatClick, handleChatExecution, showToast]);
+
+  // Update all handlers ref when they're all defined
+  useEffect(() => {
+    handlersRef.current.handleSettingsClick = handleSettingsClick;
+    handlersRef.current.handleExecutionClick = handleExecutionClick;
+    handlersRef.current.deleteNode = deleteNode;
+    handlersRef.current.duplicateNode = duplicateNode;
+    handlersRef.current.handleChatClick = handleChatClick;
+    handlersRef.current.handleChatExecution = handleChatExecution;
+  }, [handleSettingsClick, handleExecutionClick, deleteNode, duplicateNode, handleChatClick, handleChatExecution]);
   
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -2148,16 +2178,18 @@ function WorkflowBuilder() {
             </div>
 
             <div className="header-center">
-              <div className="header-tabs">
+              <div className="header-tabs" >
                 <button
                   className={`header-tab ${activeTab === 'workflow' ? 'active' : ''}`}
+                  style={{ backgroundColor: 'black' }}
                   onClick={() => setActiveTab('workflow')}
                 >
-                  <FiGrid style={{ fontSize: '16px' }} />
+                  <FiGrid style={{ fontSize: '16px', }} />
                   Workflow Builder
                 </button>
                 <button
                   className={`header-tab ${activeTab === 'page-builder' ? 'active' : ''}`}
+                  style={{ backgroundColor: '#2a2b2b' }}
                   onClick={() => navigateToBuilder('page-builder')}
                 >
                   <FiLayout style={{ fontSize: '16px' }} />
